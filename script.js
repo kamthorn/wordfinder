@@ -8,6 +8,7 @@ const elements = {
     langEn: document.getElementById('lang-en'),
     langTh: document.getElementById('lang-th'),
     input: document.getElementById('pattern-input'),
+    excludeInput: document.getElementById('exclude-input'),
     searchBtn: document.getElementById('search-btn'),
     resultsContainer: document.getElementById('results-container'),
     resultsGrid: document.getElementById('results-grid'),
@@ -31,6 +32,9 @@ function setLang(lang) {
         : 'px-6 py-2 rounded-lg font-medium transition-all text-gray-500 hover:text-gray-700';
 
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
+    elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
+    // Clear exclude when switching language
+    elements.excludeInput.value = '';
 }
 
 // Load Word Lists
@@ -75,8 +79,23 @@ async function performSearch() {
     await loadWords(currentLang);
 
     const regex = patternToRegex(pattern);
-    const results = wordLists[currentLang]
-        .filter(word => regex.test(word));
+
+    // Build exclude set (case-insensitive for English)
+    const excludeRaw = elements.excludeInput.value.trim();
+    const excludeChars = excludeRaw
+        ? new Set([...excludeRaw].map(c => c.toLowerCase()))
+        : null;
+
+    const results = wordLists[currentLang].filter(word => {
+        if (!regex.test(word)) return false;
+        if (excludeChars) {
+            const lower = word.toLowerCase();
+            for (const ch of excludeChars) {
+                if (lower.includes(ch)) return false;
+            }
+        }
+        return true;
+    });
 
     // Sort and Limit
     const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
