@@ -74,6 +74,15 @@ function patternToRegex(pattern) {
 }
 
 // Search Logic
+const thaiNonBaselineRegex = /[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g;
+
+function getWordLength(word, lang) {
+    if (lang === 'th') {
+        return word.replace(thaiNonBaselineRegex, '').length;
+    }
+    return word.length;
+}
+
 async function performSearch() {
     const pattern = elements.input.value.trim();
     if (!pattern) return;
@@ -92,7 +101,7 @@ async function performSearch() {
     const lengthFilter = parseInt(elements.lengthInput.value.trim(), 10) || null;
 
     const results = wordLists[currentLang].filter(word => {
-        if (lengthFilter && word.length !== lengthFilter) return false;
+        if (lengthFilter && getWordLength(word, currentLang) !== lengthFilter) return false;
         if (!regex.test(word)) return false;
         if (excludeChars) {
             const lower = word.toLowerCase();
