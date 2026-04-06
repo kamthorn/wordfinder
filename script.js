@@ -59,23 +59,45 @@ async function loadWords(lang) {
     }
 }
 
-// Pattern to Regex
+// Pattern to Regex (Highlighting Support)
 function patternToRegex(pattern, lang) {
-    // Escape special regex characters except _, ?, *
-    let regexStr = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    let regexStr = '';
+    let groupDefs = [];
 
-    if (lang === 'th') {
-        // For Thai, _ or ? matches 1 base character + optional non-baseline marks
-        regexStr = regexStr.replace(/[?_]/g, '(?:[^\u0E31\u0E34-\u0E3A\u0E47-\u0E4E][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]{0,})');
-    } else {
-        // Replace _ and ? with . (one character)
-        regexStr = regexStr.replace(/[?_]/g, '.');
+    // Tokenize into [ "lit", "*", "lit", "_", "lit" ]
+    const tokens = pattern.split(/([_?*]+)/);
+
+    for (let token of tokens) {
+        if (!token) continue;
+
+        if (/^[_?*]+$/.test(token)) {
+            // Wildcard token
+            let wcRegex = '';
+            for (let ch of token) {
+                if (ch === '*') {
+                    wcRegex += '.*';
+                } else if (ch === '_' || ch === '?') {
+                    if (lang === 'th') {
+                        wcRegex += '(?:[^\u0E31\u0E34-\u0E3A\u0E47-\u0E4E][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]{0,})';
+                    } else {
+                        wcRegex += '.';
+                    }
+                }
+            }
+            regexStr += '(' + wcRegex + ')';
+            groupDefs.push(false); // wildcard -> no highlight
+        } else {
+            // Literal token
+            let escaped = token.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+            regexStr += '(' + escaped + ')';
+            groupDefs.push(true); // literal -> highlight
+        }
     }
 
-    // Replace * with .* (zero or more)
-    regexStr = regexStr.replace(/\*/g, '.*');
-
-    return new RegExp(`^${regexStr}$`, 'i');
+    return {
+        regex: new RegExp(`^${regexStr}$`, 'i'),
+        groupDefs: groupDefs
+    };
 }
 
 // Search Logic
@@ -94,7 +116,7 @@ async function performSearch() {
 
     await loadWords(currentLang);
 
-    const regex = patternToRegex(pattern, currentLang);
+    const { regex, groupDefs } = patternToRegex(pattern, currentLang);
 
     // Build exclude set (case-insensitive for English)
     const excludeRaw = elements.excludeInput.value.trim();
@@ -121,10 +143,10 @@ async function performSearch() {
     const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
     const displayedResults = sortedResults.slice(0, 100);
 
-    renderResults(displayedResults, results.length);
+    renderResults(displayedResults, results.length, regex, groupDefs);
 }
 
-function renderResults(words, totalCount) {
+function renderResults(words, totalCount, regex, groupDefs) {
     elements.resultsGrid.innerHTML = '';
 
     if (words.length === 0) {
@@ -140,7 +162,27 @@ function renderResults(words, totalCount) {
     words.forEach(word => {
         const div = document.createElement('div');
         div.className = 'px-4 py-3 bg-white border border-gray-100 rounded-xl text-center font-medium hover:border-indigo-300 hover:shadow-sm transition-all cursor-default text-gray-700';
-        div.textContent = word;
+        
+        if (regex && groupDefs) {
+            const match = word.match(regex);
+            if (match) {
+                let html = '';
+                for (let i = 0; i < groupDefs.length; i++) {
+                    const text = match[i + 1] || '';
+                    if (groupDefs[i] && text) {
+                        html += `<span class="text-green-600 font-bold">${text}</span>`;
+                    } else {
+                        html += text;
+                    }
+                }
+                div.innerHTML = html;
+            } else {
+                div.textContent = word;
+            }
+        } else {
+            div.textContent = word;
+        }
+
         elements.resultsGrid.appendChild(div);
     });
 
