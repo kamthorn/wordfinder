@@ -9,6 +9,7 @@ const elements = {
     langTh: document.getElementById('lang-th'),
     input: document.getElementById('pattern-input'),
     excludeInput: document.getElementById('exclude-input'),
+    lengthInput: document.getElementById('length-input'),
     searchBtn: document.getElementById('search-btn'),
     resultsContainer: document.getElementById('results-container'),
     resultsGrid: document.getElementById('results-grid'),
@@ -33,8 +34,9 @@ function setLang(lang) {
 
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
     elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
-    // Clear exclude when switching language
+    // Clear exclude and length when switching language
     elements.excludeInput.value = '';
+    elements.lengthInput.value = '';
 }
 
 // Load Word Lists
@@ -86,7 +88,11 @@ async function performSearch() {
         ? new Set([...excludeRaw].map(c => c.toLowerCase()))
         : null;
 
+    // Get length filter
+    const lengthFilter = parseInt(elements.lengthInput.value.trim(), 10) || null;
+
     const results = wordLists[currentLang].filter(word => {
+        if (lengthFilter && word.length !== lengthFilter) return false;
         if (!regex.test(word)) return false;
         if (excludeChars) {
             const lower = word.toLowerCase();
