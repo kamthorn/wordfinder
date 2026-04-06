@@ -16,7 +16,9 @@ const elements = {
     resultCount: document.getElementById('result-count'),
     status: document.getElementById('status'),
     emptyState: document.getElementById('empty-state'),
-    limitMessage: document.getElementById('limit-message')
+    limitMessage: document.getElementById('limit-message'),
+    shareBtn: document.getElementById('share-btn'),
+    shareText: document.getElementById('share-text')
 };
 
 // Language Toggle
@@ -34,10 +36,75 @@ function setLang(lang) {
 
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
     elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
-    // Clear exclude and length when switching language
-    elements.excludeInput.value = '';
-    elements.lengthInput.value = '';
 }
+
+// Initialization and Event Listeners
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Initial Load to ensure responsiveness
+    loadWords('en');
+    loadWords('th');
+
+    // 2. Parse URL parameters for Deep Linking
+    const params = new URLSearchParams(window.location.search);
+    const urlLang = params.get('lang');
+    const urlQ = params.get('q');
+    const urlEx = params.get('ex');
+    const urlLen = params.get('len');
+
+    // Restore Settings
+    if (urlLang === 'th') setLang('th');
+    else setLang('en');
+
+    if (urlQ) elements.input.value = urlQ;
+    if (urlEx) elements.excludeInput.value = urlEx;
+    if (urlLen) elements.lengthInput.value = urlLen;
+
+    // 3. Define Standard Actions
+    elements.langEn.addEventListener('click', () => {
+        elements.input.value = '';
+        elements.excludeInput.value = '';
+        elements.lengthInput.value = '';
+        setLang('en');
+    });
+    
+    elements.langTh.addEventListener('click', () => {
+        elements.input.value = '';
+        elements.excludeInput.value = '';
+        elements.lengthInput.value = '';
+        setLang('th');
+    });
+
+    elements.searchBtn.addEventListener('click', performSearch);
+    
+    elements.input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+    
+    elements.excludeInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+    
+    elements.lengthInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+
+    // 4. Share Link functionality
+    elements.shareBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            const originalText = elements.shareText.textContent;
+            elements.shareText.textContent = 'คัดลอกแล้ว!';
+            setTimeout(() => {
+                elements.shareText.textContent = originalText;
+            }, 2000);
+        });
+    });
+
+    // 5. Automatic search if pattern exists
+    if (urlQ) {
+        await loadWords(currentLang);
+        performSearch();
+    }
+});
 
 // Load Word Lists
 async function loadWords(lang) {
@@ -139,6 +206,21 @@ async function performSearch() {
         return true;
     });
 
+    // Update URL Parameters via URLSearchParams
+    const newParams = new URLSearchParams();
+    newParams.set('lang', currentLang);
+    if (pattern) newParams.set('q', pattern);
+    if (excludeRaw) newParams.set('ex', excludeRaw);
+    if (lengthFilter) newParams.set('len', lengthFilter.toString());
+
+    const newUrl = `${window.location.pathname}?${newParams.toString()}`;
+    if (window.location.search !== `?${newParams.toString()}`) {
+        window.history.replaceState({}, '', newUrl);
+    }
+    
+    // Reveal share button
+    elements.shareBtn.dataset.visible = 'true';
+
     // Sort and Limit
     const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
     const displayedResults = sortedResults.slice(0, 100);
@@ -193,7 +275,4 @@ function renderResults(words, totalCount, regex, groupDefs) {
     }
 }
 
-elements.searchBtn.addEventListener('click', performSearch);
-elements.input.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') performSearch();
-});
+// End of script
