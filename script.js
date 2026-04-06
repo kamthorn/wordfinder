@@ -60,12 +60,17 @@ async function loadWords(lang) {
 }
 
 // Pattern to Regex
-function patternToRegex(pattern) {
+function patternToRegex(pattern, lang) {
     // Escape special regex characters except _, ?, *
     let regexStr = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
 
-    // Replace _ and ? with . (one character)
-    regexStr = regexStr.replace(/[?_]/g, '.');
+    if (lang === 'th') {
+        // For Thai, _ or ? matches 1 base character + optional non-baseline marks
+        regexStr = regexStr.replace(/[?_]/g, '(?:[^\u0E31\u0E34-\u0E3A\u0E47-\u0E4E][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]{0,})');
+    } else {
+        // Replace _ and ? with . (one character)
+        regexStr = regexStr.replace(/[?_]/g, '.');
+    }
 
     // Replace * with .* (zero or more)
     regexStr = regexStr.replace(/\*/g, '.*');
@@ -89,7 +94,7 @@ async function performSearch() {
 
     await loadWords(currentLang);
 
-    const regex = patternToRegex(pattern);
+    const regex = patternToRegex(pattern, currentLang);
 
     // Build exclude set (case-insensitive for English)
     const excludeRaw = elements.excludeInput.value.trim();
