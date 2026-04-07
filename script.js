@@ -18,8 +18,14 @@ const elements = {
     emptyState: document.getElementById('empty-state'),
     limitMessage: document.getElementById('limit-message'),
     shareBtn: document.getElementById('share-btn'),
-    shareText: document.getElementById('share-text')
+    shareText: document.getElementById('share-text'),
+    historyContainer: document.getElementById('history-container'),
+    historyList: document.getElementById('history-list'),
+    clearHistoryBtn: document.getElementById('clear-history')
 };
+
+const MAX_HISTORY = 10;
+const HISTORY_KEY = 'wordfinder_history';
 
 // Language Toggle
 elements.langEn.addEventListener('click', () => setLang('en'));
@@ -99,12 +105,91 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // 5. Automatic search if pattern exists
+    // 5. Clear History
+    elements.clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem(HISTORY_KEY);
+        renderHistory();
+    });
+
+    // 6. Initial History Render
+    renderHistory();
+
+    // 7. Automatic search if pattern exists
     if (urlQ) {
         await loadWords(currentLang);
         performSearch();
     }
 });
+
+// History Management
+function loadHistory() {
+    try {
+        const historyJson = localStorage.getItem(HISTORY_KEY);
+        return historyJson ? JSON.parse(historyJson) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveToHistory(lang, q, ex, len) {
+    let history = loadHistory();
+    
+    // Create new item
+    const newItem = { lang, q, ex, len, timestamp: Date.now() };
+    
+    // Remove duplicates (by content, not timestamp)
+    history = history.filter(item => 
+        !(item.lang === lang && item.q === q && item.ex === ex && item.len === len)
+    );
+    
+    // Add to top
+    history.unshift(newItem);
+    
+    // Limit size
+    history = history.slice(0, MAX_HISTORY);
+    
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderHistory();
+}
+
+function renderHistory() {
+    const history = loadHistory();
+    
+    if (history.length === 0) {
+        elements.historyContainer.classList.add('hidden');
+        return;
+    }
+    
+    elements.historyContainer.classList.remove('hidden');
+    elements.historyList.innerHTML = '';
+    
+    history.forEach(item => {
+        const btn = document.createElement('button');
+        btn.className = 'px-3 py-1 bg-white/60 border border-gray-100 rounded-full text-xs font-medium text-gray-500 hover:bg-white hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm flex items-center gap-1';
+        
+        const langBadge = item.lang === 'th' ? 'TH' : 'EN';
+        const displayQ = item.q;
+        const displayLen = item.len ? ` (${item.len})` : '';
+        
+        btn.innerHTML = `<span class="opacity-40 text-[10px] font-bold">${langBadge}</span> ${displayQ}${displayLen}`;
+        
+        btn.onclick = () => {
+            // Check if we need to switch language
+            const langChanged = currentLang !== item.lang;
+            
+            // Set values
+            setLang(item.lang);
+            elements.input.value = item.q;
+            elements.excludeInput.value = item.ex || '';
+            elements.lengthInput.value = item.len || '';
+            
+            // Perform search
+            performSearch();
+        };
+        
+        elements.historyList.appendChild(btn);
+    });
+}
 
 // Load Word Lists
 async function loadWords(lang) {
@@ -220,6 +305,9 @@ async function performSearch() {
     
     // Reveal share button
     elements.shareBtn.dataset.visible = 'true';
+
+    // Save to History
+    saveToHistory(currentLang, pattern, excludeRaw, lengthFilter ? lengthFilter.toString() : '');
 
     // Sort and Limit
     const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
