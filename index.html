@@ -61,6 +61,16 @@
                         </div>
                     </div>
 
+                    <!-- Available Tiles (Anagram Mode) -->
+                    <div class="relative group">
+                        <label for="tiles-input" class="block text-sm font-semibold text-gray-500 mb-2 text-center tracking-wide uppercase">ตัวอักษรที่มีในมือ (Tiles / Anagram)</label>
+                        <input type="text" id="tiles-input"
+                            class="w-full text-xl px-6 py-3 rounded-2xl border-2 border-green-100 focus:border-green-400 focus:ring-4 focus:ring-green-50 transition-all outline-none bg-white/50 text-center tracking-widest font-mono"
+                            placeholder="เช่น apple หรือ กานดา"
+                            autocomplete="off" autocorrect="off" spellcheck="false">
+                        <p class="mt-2 text-xs text-gray-400 text-center">ระบบจะหาเฉพาะคำที่ประกอบจากตัวอักษรเหล่านี้เท่านั้น</p>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Exclude Letters -->
                         <div class="relative group">

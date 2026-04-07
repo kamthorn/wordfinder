@@ -23,7 +23,8 @@ const elements = {
     historyList: document.getElementById('history-list'),
     clearHistoryBtn: document.getElementById('clear-history'),
     dictContainer: document.getElementById('dict-container'),
-    dictSelect: document.getElementById('dict-select')
+    dictSelect: document.getElementById('dict-select'),
+    tilesInput: document.getElementById('tiles-input')
 };
 
 const MAX_HISTORY = 10;
@@ -47,6 +48,7 @@ function setLang(lang) {
 
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
     elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
+    elements.tilesInput.placeholder = lang === 'en' ? 'e.g. apple' : 'เช่น กานดา';
 
     // Show/Hide English dictionary selector
     if (lang === 'en') {
@@ -69,7 +71,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlEx = params.get('ex');
     const urlLen = params.get('len');
     const urlDict = params.get('dict');
-
+    const urlTiles = params.get('tiles');
+    
     if (urlDict) currentDict = urlDict;
 
     // Restore Settings
@@ -79,6 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (urlQ) elements.input.value = urlQ;
     if (urlEx) elements.excludeInput.value = urlEx;
     if (urlLen) elements.lengthInput.value = urlLen;
+    if (urlTiles) elements.tilesInput.value = urlTiles;
     
     elements.dictSelect.value = currentDict;
 
@@ -87,6 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.input.value = '';
         elements.excludeInput.value = '';
         elements.lengthInput.value = '';
+        elements.tilesInput.value = '';
         setLang('en');
     });
     
@@ -94,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.input.value = '';
         elements.excludeInput.value = '';
         elements.lengthInput.value = '';
+        elements.tilesInput.value = '';
         setLang('th');
     });
 
@@ -116,6 +122,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     elements.lengthInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') performSearch();
+    });
+
+    elements.tilesInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') performSearch();
     });
 
@@ -156,15 +166,15 @@ function loadHistory() {
     }
 }
 
-function saveToHistory(lang, q, ex, len) {
+function saveToHistory(lang, q, ex, len, tiles) {
     let history = loadHistory();
     
     // Create new item
-    const newItem = { lang, q, ex, len, timestamp: Date.now() };
+    const newItem = { lang, q, ex, len, tiles, timestamp: Date.now() };
     
     // Remove duplicates (by content, not timestamp)
     history = history.filter(item => 
-        !(item.lang === lang && item.q === q && item.ex === ex && item.len === len)
+        !(item.lang === lang && item.q === q && item.ex === ex && item.len === len && item.tiles === tiles)
     );
     
     // Add to top
@@ -207,6 +217,7 @@ function renderHistory() {
             elements.input.value = item.q;
             elements.excludeInput.value = item.ex || '';
             elements.lengthInput.value = item.len || '';
+            elements.tilesInput.value = item.tiles || '';
             
             // Perform search
             performSearch();
@@ -305,13 +316,27 @@ function getWordLength(word, lang) {
     return word.length;
 }
 
+function getFrequencyMap(str, lang) {
+    const map = {};
+    const normStr = lang === 'en' ? str.toLowerCase() : str;
+    for (const char of normStr) {
+        map[char] = (map[char] || 0) + 1;
+    }
+    return map;
+}
+
 async function performSearch() {
     const pattern = elements.input.value.trim();
-    if (!pattern) return;
+    const tilesRaw = elements.tilesInput.value.trim();
+    
+    if (!pattern && !tilesRaw) return; // Allow searching with only tiles (Anagram mode)
+
+    // If only tiles provided, default pattern to "*"
+    const effectivePattern = pattern || '*';
 
     await loadWords(currentLang);
 
-    const { regex, groupDefs } = patternToRegex(pattern, currentLang);
+    const { regex, groupDefs } = patternToRegex(effectivePattern, currentLang);
 
     // Build exclude set (case-insensitive for English)
     const excludeRaw = elements.excludeInput.value.trim();
@@ -322,16 +347,32 @@ async function performSearch() {
     // Get length filter
     const lengthFilter = parseInt(elements.lengthInput.value.trim(), 10) || null;
 
+    // Build Tiles Map
+    const tilesMap = tilesRaw ? getFrequencyMap(tilesRaw, currentLang) : null;
+
     const cacheKey = currentLang === 'en' ? `en_${currentDict}` : 'th';
     const results = wordLists[cacheKey].filter(word => {
         if (lengthFilter && getWordLength(word, currentLang) !== lengthFilter) return false;
+        
+        // Regex Match
         if (!regex.test(word)) return false;
+        
+        // Exclude Filter
         if (excludeChars) {
             const lower = word.toLowerCase();
             for (const ch of excludeChars) {
                 if (lower.includes(ch)) return false;
             }
         }
+        
+        // Tiles Filter (Frequency Map subset check)
+        if (tilesMap) {
+            const wordMap = getFrequencyMap(word, currentLang);
+            for (const char in wordMap) {
+                if (!tilesMap[char] || wordMap[char] > tilesMap[char]) return false;
+            }
+        }
+        
         return true;
     });
 
@@ -341,6 +382,7 @@ async function performSearch() {
     if (pattern) newParams.set('q', pattern);
     if (excludeRaw) newParams.set('ex', excludeRaw);
     if (lengthFilter) newParams.set('len', lengthFilter.toString());
+    if (tilesRaw) newParams.set('tiles', tilesRaw);
     if (currentLang === 'en' && currentDict !== 'standard') newParams.set('dict', currentDict);
 
     const newUrl = `${window.location.pathname}?${newParams.toString()}`;
@@ -352,7 +394,7 @@ async function performSearch() {
     elements.shareBtn.dataset.visible = 'true';
 
     // Save to History
-    saveToHistory(currentLang, pattern, excludeRaw, lengthFilter ? lengthFilter.toString() : '');
+    saveToHistory(currentLang, pattern, excludeRaw, lengthFilter ? lengthFilter.toString() : '', tilesRaw);
 
     // Sort and Limit
     const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
