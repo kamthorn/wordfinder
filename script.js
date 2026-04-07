@@ -331,7 +331,7 @@ function renderResults(words, totalCount, regex, groupDefs) {
 
     words.forEach(word => {
         const div = document.createElement('div');
-        div.className = 'px-4 py-3 bg-white border border-gray-100 rounded-xl text-center font-medium hover:border-indigo-300 hover:shadow-sm transition-all cursor-default text-gray-700';
+        div.className = 'px-4 py-3 bg-white border border-gray-100 rounded-xl text-center font-medium hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer text-gray-700';
         
         if (regex && groupDefs) {
             const match = word.match(regex);
@@ -352,6 +352,22 @@ function renderResults(words, totalCount, regex, groupDefs) {
         } else {
             div.textContent = word;
         }
+
+        // Click to copy
+        div.onclick = () => {
+            navigator.clipboard.writeText(word).then(() => {
+                const originalHTML = div.innerHTML;
+                div.innerHTML = '<span class="text-green-500">✓ คัดลอกแล้ว</span>';
+                div.classList.add('bg-green-50', 'border-green-200');
+                div.classList.remove('bg-white', 'border-gray-100');
+                
+                setTimeout(() => {
+                    div.innerHTML = originalHTML;
+                    div.classList.remove('bg-green-50', 'border-green-200');
+                    div.classList.add('bg-white', 'border-gray-100');
+                }, 1000);
+            });
+        };
 
         elements.resultsGrid.appendChild(div);
     });
