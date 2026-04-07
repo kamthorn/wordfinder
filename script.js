@@ -21,11 +21,16 @@ const elements = {
     shareText: document.getElementById('share-text'),
     historyContainer: document.getElementById('history-container'),
     historyList: document.getElementById('history-list'),
-    clearHistoryBtn: document.getElementById('clear-history')
+    clearHistoryBtn: document.getElementById('clear-history'),
+    dictContainer: document.getElementById('dict-container'),
+    dictSelect: document.getElementById('dict-select')
 };
 
 const MAX_HISTORY = 10;
 const HISTORY_KEY = 'wordfinder_history';
+const DICT_KEY = 'wordfinder_dict';
+
+let currentDict = localStorage.getItem(DICT_KEY) || 'standard';
 
 // Language Toggle
 elements.langEn.addEventListener('click', () => setLang('en'));
@@ -42,6 +47,13 @@ function setLang(lang) {
 
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
     elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
+
+    // Show/Hide English dictionary selector
+    if (lang === 'en') {
+        elements.dictContainer.classList.remove('hidden');
+    } else {
+        elements.dictContainer.classList.add('hidden');
+    }
 }
 
 // Initialization and Event Listeners
@@ -56,6 +68,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlQ = params.get('q');
     const urlEx = params.get('ex');
     const urlLen = params.get('len');
+    const urlDict = params.get('dict');
+
+    if (urlDict) currentDict = urlDict;
 
     // Restore Settings
     if (urlLang === 'th') setLang('th');
@@ -64,6 +79,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (urlQ) elements.input.value = urlQ;
     if (urlEx) elements.excludeInput.value = urlEx;
     if (urlLen) elements.lengthInput.value = urlLen;
+    
+    elements.dictSelect.value = currentDict;
 
     // 3. Define Standard Actions
     elements.langEn.addEventListener('click', () => {
@@ -78,6 +95,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.excludeInput.value = '';
         elements.lengthInput.value = '';
         setLang('th');
+    });
+
+    elements.dictSelect.addEventListener('change', (e) => {
+        currentDict = e.target.value;
+        localStorage.setItem(DICT_KEY, currentDict);
+        // Clear English cache for simplicity or just perform search after loading new one
+        // Here we just reload and search
+        performSearch();
     });
 
     elements.searchBtn.addEventListener('click', performSearch);
@@ -193,15 +218,33 @@ function renderHistory() {
 
 // Load Word Lists
 async function loadWords(lang) {
-    if (wordLists[lang].length > 0) return;
+    const cacheKey = lang === 'en' ? `en_${currentDict}` : 'th';
+    if (wordLists[cacheKey] && wordLists[cacheKey].length > 0) return;
 
     elements.status.classList.remove('hidden');
-    elements.status.textContent = `กำลังโหลดคลังคำตามภาษา${lang === 'en' ? 'อังกฤษ' : 'ไทย'}...`;
+    
+    let dictLabel = '';
+    if (lang === 'th') dictLabel = 'ไทย';
+    else {
+        if (currentDict === 'twl') dictLabel = 'อังกฤษ (Scrabble TWL)';
+        else if (currentDict === 'sowpods') dictLabel = 'อังกฤษ (Scrabble SOWPODS)';
+        else dictLabel = 'อังกฤษ (Standard)';
+    }
+
+    elements.status.textContent = `กำลังโหลดคลังคำ${dictLabel}...`;
 
     try {
-        const response = await fetch(`data/${lang}_words.txt`);
+        let fileName = '';
+        if (lang === 'th') fileName = 'th_words.txt';
+        else {
+            if (currentDict === 'twl') fileName = 'en_twl.txt';
+            else if (currentDict === 'sowpods') fileName = 'en_sowpods.txt';
+            else fileName = 'en_words.txt';
+        }
+
+        const response = await fetch(`data/${fileName}`);
         const text = await response.text();
-        wordLists[lang] = text.split('\n')
+        wordLists[cacheKey] = text.split('\n')
             .map(w => w.trim())
             .filter(w => w.length > 0);
         elements.status.classList.add('hidden');
@@ -279,7 +322,8 @@ async function performSearch() {
     // Get length filter
     const lengthFilter = parseInt(elements.lengthInput.value.trim(), 10) || null;
 
-    const results = wordLists[currentLang].filter(word => {
+    const cacheKey = currentLang === 'en' ? `en_${currentDict}` : 'th';
+    const results = wordLists[cacheKey].filter(word => {
         if (lengthFilter && getWordLength(word, currentLang) !== lengthFilter) return false;
         if (!regex.test(word)) return false;
         if (excludeChars) {
@@ -297,6 +341,7 @@ async function performSearch() {
     if (pattern) newParams.set('q', pattern);
     if (excludeRaw) newParams.set('ex', excludeRaw);
     if (lengthFilter) newParams.set('len', lengthFilter.toString());
+    if (currentLang === 'en' && currentDict !== 'standard') newParams.set('dict', currentDict);
 
     const newUrl = `${window.location.pathname}?${newParams.toString()}`;
     if (window.location.search !== `?${newParams.toString()}`) {
