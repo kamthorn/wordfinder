@@ -24,7 +24,8 @@ const elements = {
     clearHistoryBtn: document.getElementById('clear-history'),
     dictContainer: document.getElementById('dict-container'),
     dictSelect: document.getElementById('dict-select'),
-    tilesInput: document.getElementById('tiles-input')
+    tilesInput: document.getElementById('tiles-input'),
+    subtitle: document.getElementById('subtitle')
 };
 
 const MAX_HISTORY = 10;
@@ -49,6 +50,11 @@ function setLang(lang) {
     elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
     elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
     elements.tilesInput.placeholder = lang === 'en' ? 'e.g. apple' : 'เช่น กานดา';
+
+    // Update Subtitle
+    elements.subtitle.textContent = lang === 'en'
+        ? 'Professional word finder and anagram solver for Scrabble, Wordle, Crosswords, and all your favorite word games.'
+        : 'เครื่องมือช่วยคิดและค้นหาคำศัพท์ภาษาอังกฤษและภาษาไทย สำหรับ Scrabble, Wordle, อักษรไขว้, และเกมคำศัพท์ทุกประเภท';
 
     // Show/Hide English dictionary selector
     if (lang === 'en') {
