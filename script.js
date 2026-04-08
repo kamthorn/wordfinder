@@ -333,7 +333,7 @@ function patternToRegex(pattern, lang) {
     }
 
     return {
-        regex: new RegExp(`^${regexStr}$`, 'i'),
+        regex: new RegExp(`^${regexStr}$`, lang === 'en' ? 'i' : ''),
         groupDefs: groupDefs
     };
 }
