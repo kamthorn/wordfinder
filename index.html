@@ -121,8 +121,16 @@
             </div>
 
             <!-- Status / Loading -->
-            <div id="status" class="text-center mb-8 text-sm text-gray-500 hidden">
-                กำลังโหลดข้อมูล...
+            <div id="status" class="text-center mb-8 text-sm hidden">
+                <div id="status-loading" class="text-gray-500">
+                    <span id="status-message">กำลังโหลดข้อมูล...</span>
+                </div>
+                <div id="status-error" class="hidden">
+                    <p id="error-text" class="text-red-500 mb-2">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+                    <button id="retry-btn" class="px-4 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-all font-medium text-xs">
+                        ลองใหม่ (Retry)
+                    </button>
+                </div>
             </div>
 
             <!-- Results -->

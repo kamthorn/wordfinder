@@ -3,6 +3,7 @@ const wordLists = {
     en: [],
     th: []
 };
+let activeLoads = 0;
 
 const elements = {
     langEn: document.getElementById('lang-en'),
@@ -15,6 +16,10 @@ const elements = {
     resultsGrid: document.getElementById('results-grid'),
     resultCount: document.getElementById('result-count'),
     status: document.getElementById('status'),
+    statusMessage: document.getElementById('status-message'),
+    statusLoading: document.getElementById('status-loading'),
+    statusError: document.getElementById('status-error'),
+    retryBtn: document.getElementById('retry-btn'),
     emptyState: document.getElementById('empty-state'),
     limitMessage: document.getElementById('limit-message'),
     shareBtn: document.getElementById('share-btn'),
@@ -160,6 +165,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadWords(currentLang);
         performSearch();
     }
+
+    // 8. Retry Button listener
+    elements.retryBtn.addEventListener('click', () => {
+        loadWords(currentLang);
+    });
 });
 
 // History Management
@@ -238,7 +248,11 @@ async function loadWords(lang) {
     const cacheKey = lang === 'en' ? `en_${currentDict}` : 'th';
     if (wordLists[cacheKey] && wordLists[cacheKey].length > 0) return;
 
+    // Reset UI state
+    activeLoads++;
     elements.status.classList.remove('hidden');
+    elements.statusLoading.classList.remove('hidden');
+    elements.statusError.classList.add('hidden');
     
     let dictLabel = '';
     if (lang === 'th') dictLabel = 'ไทย';
@@ -248,7 +262,7 @@ async function loadWords(lang) {
         else dictLabel = 'อังกฤษ (Standard)';
     }
 
-    elements.status.textContent = `กำลังโหลดคลังคำ${dictLabel}...`;
+    elements.statusMessage.textContent = `กำลังโหลดคลังคำ${dictLabel}...`;
 
     try {
         let fileName = '';
@@ -260,14 +274,26 @@ async function loadWords(lang) {
         }
 
         const response = await fetch(`data/${fileName}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const text = await response.text();
         wordLists[cacheKey] = text.split('\n')
             .map(w => w.trim())
             .filter(w => w.length > 0);
-        elements.status.classList.add('hidden');
+            
+        activeLoads--;
+        // Only hide if no more loads are active AND no errors are showing
+        if (activeLoads === 0 && elements.statusError.classList.contains('hidden')) {
+            elements.status.classList.add('hidden');
+        }
     } catch (error) {
         console.error('Failed to load words:', error);
-        elements.status.textContent = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
+        activeLoads--;
+        elements.statusLoading.classList.add('hidden');
+        elements.statusError.classList.remove('hidden');
     }
 }
 
