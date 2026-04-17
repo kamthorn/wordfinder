@@ -39,9 +39,12 @@ const DICT_KEY = 'wordfinder_dict';
 
 let currentDict = localStorage.getItem(DICT_KEY) || 'standard';
 
-// Language Toggle
-elements.langEn.addEventListener('click', () => setLang('en'));
-elements.langTh.addEventListener('click', () => setLang('th'));
+const BATCH_SIZE = 100;
+let allResults = [];
+let displayedCount = 0;
+let isFetching = false;
+
+
 
 function setLang(lang) {
     currentLang = lang;
@@ -170,6 +173,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.retryBtn.addEventListener('click', () => {
         loadWords(currentLang);
     });
+
+    // 9. Setup Infinite Scroll
+    setupInfiniteScroll();
 });
 
 // History Management
@@ -428,26 +434,15 @@ async function performSearch() {
     // Save to History
     saveToHistory(currentLang, pattern, excludeRaw, lengthFilter ? lengthFilter.toString() : '', tilesRaw);
 
-    // Sort and Limit
-    const sortedResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
-    const displayedResults = sortedResults.slice(0, 100);
+    // Sort results
+    allResults = results.sort((a, b) => a.localeCompare(b, currentLang === 'th' ? 'th' : 'en'));
+    displayedCount = 0;
+    isFetching = false;
 
-    renderResults(displayedResults, results.length, regex, groupDefs);
+    loadMoreResults();
 }
 
-function renderResults(words, totalCount, regex, groupDefs) {
-    elements.resultsGrid.innerHTML = '';
-
-    if (words.length === 0) {
-        elements.resultsContainer.classList.add('hidden');
-        elements.emptyState.classList.remove('hidden');
-        return;
-    }
-
-    elements.emptyState.classList.add('hidden');
-    elements.resultsContainer.classList.remove('hidden');
-    elements.resultCount.textContent = `${totalCount} คำ`;
-
+function appendWords(words, regex, groupDefs) {
     words.forEach(word => {
         const div = document.createElement('div');
         div.className = 'px-4 py-3 bg-white border border-gray-100 rounded-xl text-center font-medium hover:border-indigo-300 hover:shadow-sm transition-all cursor-pointer text-gray-700';
@@ -472,7 +467,6 @@ function renderResults(words, totalCount, regex, groupDefs) {
             div.textContent = word;
         }
 
-        // Click to copy
         div.onclick = () => {
             navigator.clipboard.writeText(word).then(() => {
                 const originalHTML = div.innerHTML;
@@ -490,12 +484,59 @@ function renderResults(words, totalCount, regex, groupDefs) {
 
         elements.resultsGrid.appendChild(div);
     });
+}
 
-    if (totalCount > 100) {
+function loadMoreResults() {
+    if (allResults.length === 0) {
+        elements.resultsContainer.classList.add('hidden');
+        elements.emptyState.classList.remove('hidden');
+        elements.limitMessage.classList.add('hidden');
+        return;
+    }
+
+    if (isFetching || displayedCount >= allResults.length) return;
+    isFetching = true;
+    
+    elements.emptyState.classList.add('hidden');
+    elements.resultsContainer.classList.remove('hidden');
+    elements.resultCount.textContent = `${allResults.length} คำ`;
+    
+    const remaining = allResults.length - displayedCount;
+    const batchSize = Math.min(BATCH_SIZE, remaining);
+    const batch = allResults.slice(displayedCount, displayedCount + batchSize);
+    
+    appendWords(batch, null, null);
+    displayedCount += batchSize;
+    
+    // Show loading indicator if more results exist
+    if (displayedCount < allResults.length) {
+        elements.limitMessage.innerHTML = '<span class="loading-spinner"></span> กำลังโหลด...';
         elements.limitMessage.classList.remove('hidden');
     } else {
         elements.limitMessage.classList.add('hidden');
     }
+    
+    isFetching = false;
+}
+
+// Intersection Observer for infinite scroll
+function setupInfiniteScroll() {
+    const sentinel = document.getElementById('scroll-sentinel');
+    if (!sentinel) return;
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !isFetching && displayedCount < allResults.length) {
+                loadMoreResults();
+            }
+        });
+    }, {
+        root: null,
+        rootMargin: '200px',
+        threshold: 0.1
+    });
+    
+    observer.observe(sentinel);
 }
 
 // End of script
