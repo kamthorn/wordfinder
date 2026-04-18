@@ -594,6 +594,9 @@ async function performSearch() {
     displayedCount = 0;
     isFetching = false;
 
+    // Clear previous results before new search
+    elements.resultsGrid.innerHTML = '';
+
     loadMoreResults();
 }
 
@@ -625,10 +628,10 @@ function appendWords(words, regex, groupDefs) {
         div.onclick = () => {
             navigator.clipboard.writeText(word).then(() => {
                 const originalHTML = div.innerHTML;
-                div.innerHTML = '<span class="text-green-500">✓ คัดลอกแล้ว</span>';
+                div.innerHTML = `<span class="text-green-500">✓ ${t('copiedText')}</span>`;
                 div.classList.add('bg-green-50', 'border-green-200');
                 div.classList.remove('bg-white', 'border-gray-100');
-                
+
                 setTimeout(() => {
                     div.innerHTML = originalHTML;
                     div.classList.remove('bg-green-50', 'border-green-200');
