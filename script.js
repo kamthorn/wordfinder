@@ -34,7 +34,9 @@ const elements = {
     settingsBtn: document.getElementById('settings-btn'),
     settingsDropdown: document.getElementById('settings-dropdown'),
     uiLangSelect: document.getElementById('ui-lang-select'),
-    dictHint: document.getElementById('dict-hint')
+    dictHint: document.getElementById('dict-hint'),
+    searchLangEn: document.getElementById('search-lang-en'),
+    searchLangTh: document.getElementById('search-lang-th')
 };
 
 const MAX_HISTORY = 10;
@@ -219,6 +221,22 @@ function setSearchLang(lang) {
     } else {
         elements.dictContainer.classList.add('hidden');
     }
+
+    // Update toggle button visual state
+    elements.searchLangEn.className = lang === 'en'
+        ? 'px-6 py-2 rounded-lg font-medium transition-all bg-white shadow-sm text-indigo-600'
+        : 'px-6 py-2 rounded-lg font-medium transition-all text-gray-500 hover:text-gray-700';
+    elements.searchLangTh.className = lang === 'th'
+        ? 'px-6 py-2 rounded-lg font-medium transition-all bg-white shadow-sm text-indigo-600'
+        : 'px-6 py-2 rounded-lg font-medium transition-all text-gray-500 hover:text-gray-700';
+}
+
+function detectLanguage(text) {
+    const hasThai = /[\u0E00-\u0E7F]/.test(text);
+    if (hasThai) return 'th';
+    const hasEnglish = /[a-zA-Z]/.test(text);
+    if (hasEnglish) return 'en';
+    return null;
 }
 
 // Initialization and Event Listeners
@@ -261,6 +279,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.searchBtn.addEventListener('click', performSearch);
 
     function scheduleSearch() {
+        const allInputs = elements.input.value + elements.excludeInput.value + elements.tilesInput.value;
+        const detected = detectLanguage(allInputs);
+        if (detected && detected !== currentLang) {
+            setSearchLang(detected);
+        }
+
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(performSearch, debounceDelay);
     }
@@ -281,6 +305,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.tilesInput.addEventListener('input', scheduleSearch);
     elements.tilesInput.addEventListener('keypress', handleEnterKey);
     elements.dictSelect.addEventListener('change', performSearch);
+
+    // Search Language Toggle handlers
+    elements.searchLangEn.addEventListener('click', () => setSearchLang('en'));
+    elements.searchLangTh.addEventListener('click', () => setSearchLang('th'));
+
+    // Initialize search language toggle visual state
+    setSearchLang(currentLang);
 
     // 4. Share Link functionality
     elements.shareBtn.addEventListener('click', () => {
