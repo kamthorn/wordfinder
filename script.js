@@ -33,7 +33,8 @@ const elements = {
     subtitle: document.getElementById('subtitle'),
     settingsBtn: document.getElementById('settings-btn'),
     settingsDropdown: document.getElementById('settings-dropdown'),
-    uiLangSelect: document.getElementById('ui-lang-select')
+    uiLangSelect: document.getElementById('ui-lang-select'),
+    dictHint: document.getElementById('dict-hint')
 };
 
 const MAX_HISTORY = 10;
@@ -44,12 +45,15 @@ const UI_LANG_KEY = 'wordfinder_ui_lang';
 let currentDict = localStorage.getItem(DICT_KEY) || 'standard';
 
 const BATCH_SIZE = 100;
+const debounceDelay = 500;
+let debounceTimer = null;
 let allResults = [];
 let displayedCount = 0;
 let isFetching = false;
 
 const uiStrings = {
     en: {
+        dictHint: 'Dictionary loads on first search',
         subtitle: 'Professional word finder and anagram solver for Scrabble, Wordle, Crosswords, and all your favorite word games.',
         dictionary: 'Dictionary',
         pattern: 'Pattern',
@@ -82,6 +86,7 @@ const uiStrings = {
         noResults: 'No words found matching your pattern'
     },
     th: {
+        dictHint: 'พจนานุกรมจะโหลดเมื่อค้นหาครั้งแรก',
         subtitle: 'เครื่องมือช่วยคิดและค้นหาคำศัพท์ภาษาอังกฤษและภาษาไทย สำหรับ Scrabble, Wordle, อักษรไขว้, และเกมคำศัพท์ทุกประเภท',
         dictionary: 'พจนานุกรม',
         pattern: 'รูปแบบคำ',
@@ -222,11 +227,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.uiLangSelect.value = currentUiLang;
     updateUITranslations();
 
-    // 1. Initial Load to ensure responsiveness
-    loadWords('en');
-    loadWords('th');
+    // Dictionary loads lazily on first search
 
-    // 2. Parse URL parameters for Deep Linking
+    // 1. Parse URL parameters for Deep Linking
     const params = new URLSearchParams(window.location.search);
     const urlLang = params.get('lang');
     const urlQ = params.get('q');
@@ -256,22 +259,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     elements.searchBtn.addEventListener('click', performSearch);
-    
-    elements.input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch();
-    });
-    
-    elements.excludeInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch();
-    });
-    
-    elements.lengthInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch();
-    });
 
-    elements.tilesInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') performSearch();
-    });
+    function scheduleSearch() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(performSearch, debounceDelay);
+    }
+
+    function handleEnterKey(e) {
+        if (e.key === 'Enter') {
+            clearTimeout(debounceTimer);
+            performSearch();
+        }
+    }
+
+    elements.input.addEventListener('input', scheduleSearch);
+    elements.input.addEventListener('keypress', handleEnterKey);
+    elements.excludeInput.addEventListener('input', scheduleSearch);
+    elements.excludeInput.addEventListener('keypress', handleEnterKey);
+    elements.lengthInput.addEventListener('input', scheduleSearch);
+    elements.lengthInput.addEventListener('keypress', handleEnterKey);
+    elements.tilesInput.addEventListener('input', scheduleSearch);
+    elements.tilesInput.addEventListener('keypress', handleEnterKey);
+    elements.dictSelect.addEventListener('change', performSearch);
 
     // 4. Share Link functionality
     elements.shareBtn.addEventListener('click', () => {
@@ -434,6 +443,9 @@ async function loadWords(lang) {
             .filter(w => w.length > 0);
             
         activeLoads--;
+        if (elements.dictHint) {
+            elements.dictHint.classList.add('hidden');
+        }
         // Only hide if no more loads are active AND no errors are showing
         if (activeLoads === 0 && elements.statusError.classList.contains('hidden')) {
             elements.status.classList.add('hidden');
