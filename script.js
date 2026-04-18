@@ -1,4 +1,6 @@
 let currentLang = 'en';
+let currentUiLang = localStorage.getItem('wordfinder_ui_lang') || 'en';
+
 const wordLists = {
     en: [],
     th: []
@@ -6,8 +8,6 @@ const wordLists = {
 let activeLoads = 0;
 
 const elements = {
-    langEn: document.getElementById('lang-en'),
-    langTh: document.getElementById('lang-th'),
     input: document.getElementById('pattern-input'),
     excludeInput: document.getElementById('exclude-input'),
     lengthInput: document.getElementById('length-input'),
@@ -30,12 +30,16 @@ const elements = {
     dictContainer: document.getElementById('dict-container'),
     dictSelect: document.getElementById('dict-select'),
     tilesInput: document.getElementById('tiles-input'),
-    subtitle: document.getElementById('subtitle')
+    subtitle: document.getElementById('subtitle'),
+    settingsBtn: document.getElementById('settings-btn'),
+    settingsDropdown: document.getElementById('settings-dropdown'),
+    uiLangSelect: document.getElementById('ui-lang-select')
 };
 
 const MAX_HISTORY = 10;
 const HISTORY_KEY = 'wordfinder_history';
 const DICT_KEY = 'wordfinder_dict';
+const UI_LANG_KEY = 'wordfinder_ui_lang';
 
 let currentDict = localStorage.getItem(DICT_KEY) || 'standard';
 
@@ -44,27 +48,167 @@ let allResults = [];
 let displayedCount = 0;
 let isFetching = false;
 
+const uiStrings = {
+    en: {
+        subtitle: 'Professional word finder and anagram solver for Scrabble, Wordle, Crosswords, and all your favorite word games.',
+        dictionary: 'Dictionary',
+        pattern: 'Pattern',
+        patternPlaceholder: 'A_P_E or *ING or B?T',
+        patternHelp1: '_ or ? for 1 letter',
+        patternHelp2: '* for multiple letters',
+        tiles: 'Tiles / Anagram',
+        tilesPlaceholder: 'e.g. apple',
+        tilesHelp: 'Only finds words using these letters',
+        exclude: 'Exclude',
+        excludePlaceholder: 'e.g. rts',
+        excludeHelp: 'Words containing these letters are excluded',
+        length: 'Length',
+        lengthPlaceholder: 'e.g. 5',
+        lengthHelp: 'Leave empty to skip filtering',
+        searchBtn: 'Search Words',
+        shareText: 'Copy Link',
+        copiedText: 'Copied!',
+        recentSearches: 'Recent Searches',
+        clearAll: 'Clear All',
+        loading: 'Loading data...',
+        loadDict: 'Loading dictionary...',
+        loadDictEn: 'Loading English dictionary',
+        loadDictTh: 'Loading Thai dictionary',
+        failed: 'Failed to load data',
+        retry: 'Retry',
+        searchResults: 'Search Results',
+        words: 'words',
+        loadingMore: 'Loading more...',
+        noResults: 'No words found matching your pattern'
+    },
+    th: {
+        subtitle: 'เครื่องมือช่วยคิดและค้นหาคำศัพท์ภาษาอังกฤษและภาษาไทย สำหรับ Scrabble, Wordle, อักษรไขว้, และเกมคำศัพท์ทุกประเภท',
+        dictionary: 'พจนานุกรม',
+        pattern: 'รูปแบบคำ',
+        patternPlaceholder: 'A_P_E or *ING or B?T',
+        patternHelp1: '_ or ? สำหรับ 1 ตัวอักษร',
+        patternHelp2: '* สำหรับหลายตัวอักษร',
+        tiles: 'ตัวอักษรที่มีในมือ',
+        tilesPlaceholder: 'เช่น apple',
+        tilesHelp: 'ระบบจะหาเฉพาะคำที่ประกอบจากตัวอักษรเหล่านี้เท่านั้น',
+        exclude: 'ตัวอักษรที่ไม่มีในคำ',
+        excludePlaceholder: 'เช่น rts',
+        excludeHelp: 'คำที่มีตัวเหล่านี้จะถูกคัดออก',
+        length: 'ความยาวคำ',
+        lengthPlaceholder: 'เช่น 5',
+        lengthHelp: 'ไม่ต้องระบุหากไม่ต้องการกรอง',
+        searchBtn: 'ค้นหาคำศัพท์',
+        shareText: 'คัดลอกลิงก์',
+        copiedText: 'คัดลอกแล้ว!',
+        recentSearches: 'ประวัติการค้นล่าสุด',
+        clearAll: 'ล้างประวัติ',
+        loading: 'กำลังโหลดข้อมูล...',
+        loadDict: 'กำลังโหลดพจนานุกรม...',
+        loadDictEn: 'กำลังโหลดพจนานุกรมภาษาอังกฤษ',
+        loadDictTh: 'กำลังโหลดพจนานุกรมภาษาไทย',
+        failed: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+        retry: 'ลองใหม่',
+        searchResults: 'ผลการค้นหา',
+        words: 'คำ',
+        loadingMore: 'กำลังโหลด...',
+        noResults: 'ไม่พบคำที่ตรงกับรูปแบบที่กำหนด'
+    }
+};
 
+function t(key) {
+    return uiStrings[currentUiLang][key] || uiStrings.en[key] || key;
+}
 
-function setLang(lang) {
+function setUiLang(lang) {
+    currentUiLang = lang;
+    localStorage.setItem(UI_LANG_KEY, lang);
+    updateUITranslations();
+}
+
+function updateUITranslations() {
+    const s = uiStrings[currentUiLang];
+
+    elements.subtitle.textContent = s.subtitle;
+
+    const dictLabel = elements.dictContainer.querySelector('label');
+    if (dictLabel) dictLabel.textContent = s.dictionary;
+
+    const patternLabel = elements.input.parentElement.querySelector('label');
+    if (patternLabel) patternLabel.textContent = s.pattern;
+    elements.input.placeholder = s.patternPlaceholder;
+
+    const patternHelp = elements.input.parentElement.querySelector('.flex-wrap');
+    if (patternHelp) {
+        const helpSpans = patternHelp.querySelectorAll('span');
+        if (helpSpans[0]) helpSpans[0].innerHTML = `<code>_</code> or <code>?</code> ${s.patternHelp1.split(' for ')[1] || s.patternHelp1}`;
+        if (helpSpans[1]) helpSpans[1].innerHTML = `<code>*</code> ${s.patternHelp2}`;
+    }
+
+    const tilesLabel = elements.tilesInput.parentElement.querySelector('label');
+    if (tilesLabel) tilesLabel.textContent = s.tiles;
+    elements.tilesInput.placeholder = s.tilesPlaceholder;
+    const tilesHelp = elements.tilesInput.parentElement.querySelector('p');
+    if (tilesHelp) tilesHelp.textContent = s.tilesHelp;
+
+    const excludeLabel = elements.excludeInput.parentElement.querySelector('label');
+    if (excludeLabel) excludeLabel.textContent = s.exclude;
+    elements.excludeInput.placeholder = s.excludePlaceholder;
+    const excludeHelp = elements.excludeInput.parentElement.querySelector('p');
+    if (excludeHelp) excludeHelp.textContent = s.excludeHelp;
+
+    const lengthLabel = elements.lengthInput.parentElement.querySelector('label');
+    if (lengthLabel) lengthLabel.textContent = s.length;
+    elements.lengthInput.placeholder = s.lengthPlaceholder;
+    const lengthHelp = elements.lengthInput.parentElement.querySelector('p');
+    if (lengthHelp) lengthHelp.textContent = s.lengthHelp;
+
+    elements.searchBtn.textContent = s.searchBtn;
+    elements.shareText.textContent = s.shareText;
+
+    const historyTitle = elements.historyContainer.querySelector('h3');
+    if (historyTitle) historyTitle.textContent = s.recentSearches;
+    elements.clearHistoryBtn.textContent = s.clearAll;
+
+    elements.statusMessage.textContent = s.loading;
+    const errorText = document.getElementById('error-text');
+    if (errorText) errorText.textContent = s.failed;
+    elements.retryBtn.textContent = s.retry;
+
+    const resultsTitle = elements.resultsContainer.querySelector('h2');
+    if (resultsTitle) resultsTitle.textContent = s.searchResults;
+    if (elements.resultCount.dataset.original === undefined) {
+        elements.resultCount.dataset.original = elements.resultCount.textContent;
+    }
+    if (allResults.length > 0) {
+        elements.resultCount.textContent = `${allResults.length} ${s.words}`;
+    }
+
+    elements.limitMessage.innerHTML = displayedCount < allResults.length
+        ? `<span class="loading-spinner"></span> ${s.loadingMore}`
+        : '';
+    if (elements.limitMessage.textContent === s.loadingMore) {
+        elements.limitMessage.innerHTML = `<span class="loading-spinner"></span> ${s.loadingMore}`;
+    }
+
+    elements.emptyState.querySelector('p').textContent = s.noResults;
+
+    const uiLangSelectLabel = elements.settingsDropdown.querySelector('label');
+    if (uiLangSelectLabel) uiLangSelectLabel.textContent = currentUiLang === 'en' ? 'Language' : 'ภาษา';
+}
+
+function setSearchLang(lang) {
     currentLang = lang;
-    elements.langEn.className = lang === 'en'
-        ? 'px-6 py-2 rounded-lg font-medium transition-all bg-white shadow-sm text-primary text-indigo-600'
-        : 'px-6 py-2 rounded-lg font-medium transition-all text-gray-500 hover:text-gray-700';
-    elements.langTh.className = lang === 'th'
-        ? 'px-6 py-2 rounded-lg font-medium transition-all bg-white shadow-sm text-primary text-indigo-600'
-        : 'px-6 py-2 rounded-lg font-medium transition-all text-gray-500 hover:text-gray-700';
 
-    elements.input.placeholder = lang === 'en' ? 'A_P_E or *ING or B?T' : 'ก_น หรือ *การ หรือ ?ำ';
-    elements.excludeInput.placeholder = lang === 'en' ? 'เช่น rts' : 'เช่น กขค';
-    elements.tilesInput.placeholder = lang === 'en' ? 'e.g. apple' : 'เช่น กานดา';
+    elements.input.placeholder = lang === 'en'
+        ? uiStrings[currentUiLang].patternPlaceholder
+        : 'ก_น หรือ *การ หรือ ?ำ';
+    elements.excludeInput.placeholder = lang === 'en'
+        ? uiStrings[currentUiLang].excludePlaceholder
+        : 'เช่น กขค';
+    elements.tilesInput.placeholder = lang === 'en'
+        ? uiStrings[currentUiLang].tilesPlaceholder
+        : 'เช่น กานดา';
 
-    // Update Subtitle
-    elements.subtitle.textContent = lang === 'en'
-        ? 'Professional word finder and anagram solver for Scrabble, Wordle, Crosswords, and all your favorite word games.'
-        : 'เครื่องมือช่วยคิดและค้นหาคำศัพท์ภาษาอังกฤษและภาษาไทย สำหรับ Scrabble, Wordle, อักษรไขว้, และเกมคำศัพท์ทุกประเภท';
-
-    // Show/Hide English dictionary selector
     if (lang === 'en') {
         elements.dictContainer.classList.remove('hidden');
     } else {
@@ -74,6 +218,10 @@ function setLang(lang) {
 
 // Initialization and Event Listeners
 document.addEventListener('DOMContentLoaded', async () => {
+    // 0. Apply saved UI language
+    elements.uiLangSelect.value = currentUiLang;
+    updateUITranslations();
+
     // 1. Initial Load to ensure responsiveness
     loadWords('en');
     loadWords('th');
@@ -86,42 +234,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const urlLen = params.get('len');
     const urlDict = params.get('dict');
     const urlTiles = params.get('tiles');
-    
+
     if (urlDict) currentDict = urlDict;
 
     // Restore Settings
-    if (urlLang === 'th') setLang('th');
-    else setLang('en');
+    if (urlLang === 'th') setSearchLang('th');
+    else setSearchLang('en');
 
     if (urlQ) elements.input.value = urlQ;
     if (urlEx) elements.excludeInput.value = urlEx;
     if (urlLen) elements.lengthInput.value = urlLen;
     if (urlTiles) elements.tilesInput.value = urlTiles;
-    
+
     elements.dictSelect.value = currentDict;
 
     // 3. Define Standard Actions
-    elements.langEn.addEventListener('click', () => {
-        elements.input.value = '';
-        elements.excludeInput.value = '';
-        elements.lengthInput.value = '';
-        elements.tilesInput.value = '';
-        setLang('en');
-    });
-    
-    elements.langTh.addEventListener('click', () => {
-        elements.input.value = '';
-        elements.excludeInput.value = '';
-        elements.lengthInput.value = '';
-        elements.tilesInput.value = '';
-        setLang('th');
-    });
-
     elements.dictSelect.addEventListener('change', (e) => {
         currentDict = e.target.value;
         localStorage.setItem(DICT_KEY, currentDict);
-        // Clear English cache for simplicity or just perform search after loading new one
-        // Here we just reload and search
         performSearch();
     });
 
@@ -147,11 +277,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.shareBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(window.location.href).then(() => {
             const originalText = elements.shareText.textContent;
-            elements.shareText.textContent = 'คัดลอกแล้ว!';
+            elements.shareText.textContent = t('copiedText');
             setTimeout(() => {
                 elements.shareText.textContent = originalText;
             }, 2000);
         });
+    });
+
+    // 5. Settings Dropdown toggle
+    elements.settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.settingsDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!elements.settingsDropdown.contains(e.target) && e.target !== elements.settingsBtn) {
+            elements.settingsDropdown.classList.add('hidden');
+        }
+    });
+
+    elements.uiLangSelect.addEventListener('change', (e) => {
+        setUiLang(e.target.value);
     });
 
     // 5. Clear History
@@ -231,11 +377,8 @@ function renderHistory() {
         btn.innerHTML = `<span class="opacity-40 text-[10px] font-bold">${langBadge}</span> ${displayQ}${displayLen}`;
         
         btn.onclick = () => {
-            // Check if we need to switch language
-            const langChanged = currentLang !== item.lang;
-            
             // Set values
-            setLang(item.lang);
+            setSearchLang(item.lang);
             elements.input.value = item.q;
             elements.excludeInput.value = item.ex || '';
             elements.lengthInput.value = item.len || '';
@@ -259,16 +402,16 @@ async function loadWords(lang) {
     elements.status.classList.remove('hidden');
     elements.statusLoading.classList.remove('hidden');
     elements.statusError.classList.add('hidden');
-    
+
     let dictLabel = '';
-    if (lang === 'th') dictLabel = 'ไทย';
+    if (lang === 'th') dictLabel = 'Thai';
     else {
-        if (currentDict === 'twl') dictLabel = 'อังกฤษ (Scrabble TWL)';
-        else if (currentDict === 'sowpods') dictLabel = 'อังกฤษ (Scrabble SOWPODS)';
-        else dictLabel = 'อังกฤษ (Standard)';
+        if (currentDict === 'twl') dictLabel = 'Scrabble TWL';
+        else if (currentDict === 'sowpods') dictLabel = 'Scrabble SOWPODS';
+        else dictLabel = 'Standard';
     }
 
-    elements.statusMessage.textContent = `กำลังโหลดคลังคำ${dictLabel}...`;
+    elements.statusMessage.textContent = `${t('loadDict')} (${dictLabel})`;
 
     try {
         let fileName = '';
@@ -499,18 +642,18 @@ function loadMoreResults() {
     
     elements.emptyState.classList.add('hidden');
     elements.resultsContainer.classList.remove('hidden');
-    elements.resultCount.textContent = `${allResults.length} คำ`;
-    
+    elements.resultCount.textContent = `${allResults.length} ${t('words')}`;
+
     const remaining = allResults.length - displayedCount;
     const batchSize = Math.min(BATCH_SIZE, remaining);
     const batch = allResults.slice(displayedCount, displayedCount + batchSize);
-    
+
     appendWords(batch, null, null);
     displayedCount += batchSize;
-    
+
     // Show loading indicator if more results exist
     if (displayedCount < allResults.length) {
-        elements.limitMessage.innerHTML = '<span class="loading-spinner"></span> กำลังโหลด...';
+        elements.limitMessage.innerHTML = `<span class="loading-spinner"></span> ${t('loadingMore')}`;
         elements.limitMessage.classList.remove('hidden');
     } else {
         elements.limitMessage.classList.add('hidden');
